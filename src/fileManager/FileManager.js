@@ -1,14 +1,19 @@
-import {
+import path, {
 	parse,
 	join
 } from 'node:path';
 import {
 	open,
 	readdir,
-	stat
+	rename,
+	stat,
+	rm as remove,
+	mkdir
 } from 'node:fs/promises';
 import {
-	createReadStream
+	createReadStream,
+	createWriteStream,
+	existsSync
 } from 'node:fs';
 
 export default class {
@@ -94,7 +99,7 @@ export default class {
 				return console.error(arr);
 			}
 		} else {
-			return console.log('path not found');
+			return this.notifier.log('path not found');
 		}
 	}
 	async add(args) {
@@ -106,6 +111,61 @@ export default class {
 			} catch (err) {
 				console.error(err);
 			}
+		}
+	}
+	async rn(args) {
+		if (args.length === 2) {
+			const [srcBasename, destBasename] = args;
+			const oldPath = join(this._current, srcBasename);
+			const newPath = join(this._current, destBasename);
+			if (existsSync(newPath)) {
+				return this.notifier.log(`${destBasename} is already exists!`);
+			}
+			try {
+				await rename(oldPath, newPath);
+			} catch (err) {
+				console.error(err);
+			}
+		} else {
+			return this.notifier.log('incorrect format: ', ...args);
+		}
+	}
+	async rm(args) {
+		if (args.length) {
+			const pathToFile = join(this._current, args[0]);
+			await remove(pathToFile);
+		} else {
+			return this.notifier.log('incorrect format: ', ...args);
+		}
+	}
+	async cp(args) {
+		if (args.length === 2) {
+			const [src, destFolder] = args;
+			const {
+				base
+			} = parse(src);
+			const srcPath = join(this._current, src);
+			const destFolderPath = join(this._current, destFolder);
+			const destPath = join(destFolderPath, base);
+			if (!existsSync(destFolderPath)) {
+				await mkdir(destFolderPath, {
+						recursive: true
+					})
+					.catch(console.error);
+			}
+			const readStream = createReadStream(srcPath);
+			const writeStream = createWriteStream(destPath);
+			readStream.pipe(writeStream);
+		} else {
+			return this.notifier.log('incorrect format: ', ...args);
+		}
+	}
+	async mv(args) {
+		try {
+			await this.cp(args);
+			await this.rm(args);
+		} catch (err) {
+			console.error(err);
 		}
 	}
 }
