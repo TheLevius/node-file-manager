@@ -1,6 +1,8 @@
 import {
 	parse,
-	join
+	join,
+	sep,
+	isAbsolute
 } from 'node:path';
 import {
 	open,
@@ -41,10 +43,31 @@ export default class {
 		this._current = value;
 	}
 
-	greeting = () => console.log(`Welcome to the File Manager, ${this._currentUser}!`);
-	farewell = () => console.log(`\nThank you for using File Manager, ${this._currentUser}, goodbye!`);
-	pwd = () => console.log(`You are currently in ${this.wd ?? 'Unknown directory'}`);
+	greeting = () => console.log(`Welcome to the File Manager, ${this._currentUser}!`)
+	farewell = () => console.log(`\nThank you for using File Manager, ${this._currentUser}, goodbye!`)
+	pwd = () => console.log(`You are currently in ${this.wd ?? 'Unknown directory'}`)
 
+	up() {
+		if (this._current !== this._root) {
+			this.wd = join(this._current, '..', sep);
+			return this.pwd();
+		} else {
+			return console.log('not access');
+		}
+	}
+	cd(args) {
+		if (args.length > 0) {
+			const [nextPath] = args;
+			if (isAbsolute(nextPath)) {
+				this.wd = nextPath;
+				return this.pwd();
+			}
+			this.wd = join(this._current, nextPath);
+			return this.pwd();
+		} else {
+			return console.log('incorrect format: ', ...args);
+		}
+	}
 	async ls(args) {
 		try {
 			const currentPath = args[0] ?? this._current;
