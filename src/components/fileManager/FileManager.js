@@ -1,4 +1,4 @@
-import path, {
+import {
 	parse,
 	join
 } from 'node:path';
@@ -15,19 +15,23 @@ import {
 	createWriteStream,
 	existsSync
 } from 'node:fs';
-
+import {
+	cpus,
+	arch,
+	EOL
+} from 'node:os';
 export default class {
-	constructor(homedir, workDir, notifier) {
+	constructor(homedir, workDir, currentUser) {
 		const parsedHomeDir = parse(homedir);
 		const parsedWorkDir = parse(workDir);
 
+		this._currentUser = currentUser;
 		this._homedir = homedir;
 		this._root = parsedHomeDir.root;
 		this._username = parsedHomeDir.base;
 		this._current = workDir;
 		this._parsedHome = parsedHomeDir;
 		this._parsedWork = parsedWorkDir;
-		this.notifier = notifier;
 	}
 	get wd() {
 		return this._current;
@@ -36,36 +40,22 @@ export default class {
 	set wd(value) {
 		this._current = value;
 	}
-	pwd = () => this.notifier.pwd(this.wd);
-	greeting = () => this.notifier.greeting();
-	farewell = () => this.notifier.farewell();
-	log = (text) => this.notifier.log(text);
+
+	greeting = () => console.log(`Welcome to the File Manager, ${this._currentUser}!`);
+	farewell = () => console.log(`\nThank you for using File Manager, ${this._currentUser}, goodbye!`);
+	pwd = () => console.log(`You are currently in ${this.wd ?? 'Unknown directory'}`);
 
 	async ls(args) {
 		try {
 			const currentPath = args[0] ?? this._current;
-			const basenames = await readdir(currentPath);
-			const statResults = await Promise.allSettled(basenames.map((basename) => {
-				const joinedPath = join(currentPath, basename);
-				return new Promise(async (res, rej) => {
-					try {
-						const stats = await stat(joinedPath);
-						res({
-							Name: basename,
-							Type: stats.isDirectory() ? 'directory' : 'file'
-						});
-					} catch (err) {
-						rej(err);
-					}
-				});
-			}));
-			const results = statResults
-				.reduce((acc, pathResult) => {
-					if (pathResult.status === 'fulfilled') {
-						acc.push(pathResult.value);
-					}
-					return acc;
-				}, [])
+			const basenames = await readdir(currentPath, {
+				withFileTypes: true
+			});
+			const results = basenames
+				.map((basename) => ({
+					Name: basename.name,
+					Type: basename.isDirectory() ? 'directory' : 'file'
+				}))
 				.sort((a, b) => {
 					if (a.Type > b.Type) return 1;
 					if (a.Type < b.Type) return -1;
@@ -75,9 +65,6 @@ export default class {
 				});
 			console.table(results);
 		} catch (err) {
-			if (err.code === 'ENOENT') {
-				throw new Error('FS operation failed');
-			}
 			console.error(err);
 		}
 	}
@@ -93,13 +80,13 @@ export default class {
 						return console.log(data);
 					});
 				} else {
-					return console.error(`${args[0]} is a Directory`);
+					console.error(`${args[0]} is a Directory`);
 				}
 			} catch (err) {
-				return console.error(arr);
+				console.error(arr);
 			}
 		} else {
-			return this.notifier.log('path not found');
+			console.log('path not found');
 		}
 	}
 	async add(args) {
@@ -119,7 +106,7 @@ export default class {
 			const oldPath = join(this._current, srcBasename);
 			const newPath = join(this._current, destBasename);
 			if (existsSync(newPath)) {
-				return this.notifier.log(`${destBasename} is already exists!`);
+				console.log(`${destBasename} is already exists!`);
 			}
 			try {
 				await rename(oldPath, newPath);
@@ -127,7 +114,7 @@ export default class {
 				console.error(err);
 			}
 		} else {
-			return this.notifier.log('incorrect format: ', ...args);
+			console.log('incorrect format: ', ...args);
 		}
 	}
 	async rm(args) {
@@ -135,7 +122,7 @@ export default class {
 			const pathToFile = join(this._current, args[0]);
 			await remove(pathToFile);
 		} else {
-			return this.notifier.log('incorrect format: ', ...args);
+			console.log('incorrect format: ', ...args);
 		}
 	}
 	async cp(args) {
@@ -157,7 +144,7 @@ export default class {
 			const writeStream = createWriteStream(destPath);
 			readStream.pipe(writeStream);
 		} else {
-			return this.notifier.log('incorrect format: ', ...args);
+			console.log('incorrect format: ', ...args);
 		}
 	}
 	async mv(args) {
@@ -167,5 +154,21 @@ export default class {
 		} catch (err) {
 			console.error(err);
 		}
+	}
+	os(args) {
+		const commands = {
+			'--EOL': () => JSON.stringify(EOL),
+			'--cpus': () => cpus()[0].model,
+			'--homedir': () => this._homedir,
+			'--username': () => this._currentUser ?? this._username,
+			'--architecture': () => arch()
+		};
+		args.forEach((arg) => {
+			if (typeof commands[arg] === 'function') {
+				console.log(commands[arg]());
+			} else {
+				console.log('incorrect argument: ', arg);
+			}
+		});
 	}
 }
