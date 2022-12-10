@@ -141,27 +141,27 @@ export default class {
 			const oldPath = this._pathResolver(args[0]);
 			const newPath = this._pathResolver(args[1]);
 			if (existsSync(newPath)) {
-				console.log(`${destBasename} is already exists!`);
+				return console.error(`${newPath} is already exists!`);
 			}
-			try {
-				await rename(oldPath, newPath);
-			} catch (err) {
-				console.error(err);
-			}
+			await rename(oldPath, newPath)
+				.catch((err) => console.error(err));
 		} else {
 			console.log('incorrect format: ', ...args);
 		}
 	}
 	async rm(args) {
 		if (args.length) {
-			const pathToFile = this._pathResolver(args[0]);
-			await remove(pathToFile);
+			args.forEach((pathToRm) => {
+				const pathToFile = this._pathResolver(pathToRm);
+				remove(pathToFile)
+					.catch((err) => console.error(err));
+			})
 		} else {
 			console.log('incorrect format: ', ...args);
 		}
 	}
 	async cp(args) {
-		if (args.length === 2) {
+		if (args.length >= 2) {
 			const [src, destFolder] = args;
 			const {
 				base
@@ -176,7 +176,9 @@ export default class {
 					.catch(console.error);
 			}
 			const readStream = createReadStream(srcPath);
-			const writeStream = createWriteStream(destPath);
+			const writeStream = createWriteStream(destPath, {
+				flags: 'wx'
+			});
 			readStream.pipe(writeStream);
 		} else {
 			console.log('incorrect format: ', ...args);
