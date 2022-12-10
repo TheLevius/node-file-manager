@@ -1,14 +1,9 @@
-// import {
-// 	defineAbsPath
-// } from './utils/defineAbsolutePath.js';
 import defineUser from './utils/defineUser.js';
 import {
 	homedir
 } from 'node:os';
-// const getPath = defineAbsPath(
-// 	import.meta.url);
-import FileManager from './components/fileManager/FileManager.js';
-import Handler from './components/Handler/Handler.js';
+import FileManager from './components/FileManager.js';
+import Handler from './components/Handler.js';
 
 const args = process.argv.slice(2);
 console.log(args);

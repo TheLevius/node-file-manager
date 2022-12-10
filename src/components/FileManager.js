@@ -22,6 +22,7 @@ import {
 	arch,
 	EOL
 } from 'node:os';
+
 export default class {
 	constructor(homedir, workDir, currentUser) {
 		const parsedHomeDir = parse(homedir);
@@ -47,6 +48,8 @@ export default class {
 	farewell = () => console.log(`\nThank you for using File Manager, ${this._currentUser}, goodbye!`)
 	pwd = () => console.log(`You are currently in ${this.wd ?? 'Unknown directory'}`)
 
+	_pathResolver = (inputPath) => isAbsolute(inputPath) ? inputPath : join(this._current, inputPath)
+
 	up() {
 		if (this._current !== this._root) {
 			this.wd = join(this._current, '..', sep);
@@ -56,44 +59,36 @@ export default class {
 		}
 	}
 	cd(args) {
-		if (args.length > 0) {
-			const [nextPath] = args;
-			if (isAbsolute(nextPath)) {
-				this.wd = nextPath;
-				return this.pwd();
-			}
-			this.wd = join(this._current, nextPath);
-			return this.pwd();
+		if (args.length === 1) {
+			this.wd = this._pathResolver(args[0]);
+			return this.pwd;
 		} else {
 			return console.log('incorrect format: ', ...args);
 		}
 	}
 	async ls(args) {
-		try {
-			const currentPath = args[0] ?? this._current;
-			const basenames = await readdir(currentPath, {
+		const currentPath = args[0] ?? this._current;
+		const basenames = await readdir(currentPath, {
 				withFileTypes: true
+			})
+			.catch((err) => console.error(err));
+		const results = basenames
+			.map((basename) => ({
+				Name: basename.name,
+				Type: basename.isDirectory() ? 'directory' : 'file'
+			}))
+			.sort((a, b) => {
+				if (a.Type > b.Type) return 1;
+				if (a.Type < b.Type) return -1;
+				if (a.Name.toUpperCase() < b.Name.toUpperCase()) return -1;
+				if (a.Name.toUpperCase() > b.Name.toUpperCase()) return 1;
+				return 0;
 			});
-			const results = basenames
-				.map((basename) => ({
-					Name: basename.name,
-					Type: basename.isDirectory() ? 'directory' : 'file'
-				}))
-				.sort((a, b) => {
-					if (a.Type > b.Type) return 1;
-					if (a.Type < b.Type) return -1;
-					if (a.Name < b.Name) return 1;
-					if (a.Name > b.Name) return -1;
-					return 0;
-				});
-			console.table(results);
-		} catch (err) {
-			console.error(err);
-		}
+		console.table(results);
 	}
 	async cat(args) {
 		if (args.length === 1) {
-			const currentPath = join(this._current, args[0]);
+			const currentPath = this._pathResolver(args[0]);
 			try {
 				const currentPathStat = await stat(currentPath);
 				if (currentPathStat.isFile()) {
@@ -114,7 +109,7 @@ export default class {
 	}
 	async add(args) {
 		if (args.length === 1) {
-			const currentPath = join(this._current, args[0]);
+			const currentPath = this._pathResolver(args[0]);
 			try {
 				const emptyFile = await open(currentPath, 'wx');
 				await emptyFile.close();
@@ -125,9 +120,8 @@ export default class {
 	}
 	async rn(args) {
 		if (args.length === 2) {
-			const [srcBasename, destBasename] = args;
-			const oldPath = join(this._current, srcBasename);
-			const newPath = join(this._current, destBasename);
+			const oldPath = this._pathResolver(args[0]);
+			const newPath = this._pathResolver(args[1]);
 			if (existsSync(newPath)) {
 				console.log(`${destBasename} is already exists!`);
 			}
@@ -142,7 +136,7 @@ export default class {
 	}
 	async rm(args) {
 		if (args.length) {
-			const pathToFile = join(this._current, args[0]);
+			const pathToFile = this._pathResolver(args[0]);
 			await remove(pathToFile);
 		} else {
 			console.log('incorrect format: ', ...args);
@@ -154,8 +148,8 @@ export default class {
 			const {
 				base
 			} = parse(src);
-			const srcPath = join(this._current, src);
-			const destFolderPath = join(this._current, destFolder);
+			const srcPath = this._pathResolver(src);
+			const destFolderPath = this._pathResolver(destFolder);
 			const destPath = join(destFolderPath, base);
 			if (!existsSync(destFolderPath)) {
 				await mkdir(destFolderPath, {
