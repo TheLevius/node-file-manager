@@ -48,6 +48,23 @@ export default class {
 	farewell = () => console.log(`\nThank you for using File Manager, ${this._currentUser}, goodbye!`)
 	pwd = () => console.log(`You are currently in ${this.wd ?? 'Unknown directory'}`)
 
+	os(args) {
+		const commands = {
+			'--EOL': () => JSON.stringify(EOL),
+			'--homedir': () => this._homedir,
+			'--username': () => this._currentUser ?? this._username,
+			'--architecture': () => arch(),
+			'--cpus': () => cpus()[0].model,
+		};
+		args.forEach((arg) => {
+			if (typeof commands[arg] === 'function') {
+				console.log(commands[arg]());
+			} else {
+				console.log('incorrect argument: ', arg);
+			}
+		});
+	}
+
 	_pathResolver = (inputPath) => isAbsolute(inputPath) ? inputPath : join(this._current, inputPath)
 
 	up() {
@@ -55,7 +72,7 @@ export default class {
 			this.wd = join(this._current, '..', sep);
 			return this.pwd();
 		} else {
-			return console.log('not access');
+			return console.log('Access Denied');
 		}
 	}
 	cd(args) {
@@ -66,6 +83,7 @@ export default class {
 			return console.log('incorrect format: ', ...args);
 		}
 	}
+
 	async ls(args) {
 		const currentPath = args[0] ?? this._current;
 		const basenames = await readdir(currentPath, {
@@ -171,21 +189,5 @@ export default class {
 		} catch (err) {
 			console.error(err);
 		}
-	}
-	os(args) {
-		const commands = {
-			'--EOL': () => JSON.stringify(EOL),
-			'--cpus': () => cpus()[0].model,
-			'--homedir': () => this._homedir,
-			'--username': () => this._currentUser ?? this._username,
-			'--architecture': () => arch()
-		};
-		args.forEach((arg) => {
-			if (typeof commands[arg] === 'function') {
-				console.log(commands[arg]());
-			} else {
-				console.log('incorrect argument: ', arg);
-			}
-		});
 	}
 }

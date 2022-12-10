@@ -6,9 +6,8 @@ import FileManager from './components/FileManager.js';
 import Handler from './components/Handler.js';
 
 const args = process.argv.slice(2);
-console.log(args);
 const parsedArgsCollection = args.reduce((acc, el) => {
-	if (el.includes('--', 0) && el.length > 2) {
+	if (el.length > 2 && el.includes('--', 0)) {
 		const [key, value] = el.split('=');
 		const parsedKey = key.replace(/^--/, '');
 		acc[parsedKey] = value;
