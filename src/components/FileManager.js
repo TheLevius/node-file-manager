@@ -7,6 +7,7 @@ import {
 import {
 	open,
 	readdir,
+	readFile,
 	rename,
 	stat,
 	rm as remove,
@@ -22,7 +23,19 @@ import {
 	arch,
 	EOL
 } from 'node:os';
-
+import {
+	createHash
+} from 'node:crypto';
+import {
+	pipeline
+} from 'node:stream';
+import {
+	createBrotliCompress,
+	createBrotliDecompress
+} from 'node:zlib';
+import {
+	promisify
+} from 'node:util';
 export default class {
 	constructor(homedir, workDir, currentUser) {
 		const parsedHomeDir = parse(homedir);
@@ -90,6 +103,7 @@ export default class {
 				withFileTypes: true
 			})
 			.catch((err) => console.error(err));
+
 		const results = basenames
 			.map((basename) => ({
 				Name: basename.name,
@@ -115,9 +129,11 @@ export default class {
 						const data = chunk.toString();
 						return console.log(data);
 					});
+
 				} else {
 					console.error(`${args[0]} is a Directory`);
 				}
+
 			} catch (err) {
 				console.error(arr);
 			}
@@ -190,6 +206,55 @@ export default class {
 			await this.rm(args);
 		} catch (err) {
 			console.error(err);
+		}
+	}
+
+	async hash(args) {
+		if (args.length) {
+			const pathToFile = this._pathResolver(args[0]);
+			try {
+				const data = await readFile(pathToFile, {
+					encoding: 'utf8'
+				});
+				const hashSum = createHash('sha256');
+				hashSum.update(data);
+				const hex = hashSum.digest('hex');
+				console.log(hex);
+			} catch (err) {
+				console.error(err);
+			}
+
+		} else {
+			console.log('incorrect format: ', ...args);
+		}
+	}
+	async _createTransformStream(args) {
+		if (args.length >= 3) {
+			const [src, dest, ...transformers] = args;
+			const srcPath = this._pathResolver(src);
+			const destPath = this._pathResolver(dest);
+			const readStream = createReadStream(srcPath);
+			const writeStream = createWriteStream(destPath);
+
+			const pipe = promisify(pipeline);
+
+			return pipe(readStream, ...transformers, writeStream);
+		} else {
+			console.log('incorrect format: ', ...args);
+		}
+	}
+	async compress(args) {
+		if (args.length >= 2) {
+			await this._createTransformStream([args[0], args[1], createBrotliCompress()]);
+		} else {
+			console.log('incorrect format: ', ...args);
+		}
+	}
+	async decompress(args) {
+		if (args.length >= 2) {
+			await this._createTransformStream([args[0], args[1], createBrotliDecompress()]);
+		} else {
+			console.log('incorrect format: ', ...args);
 		}
 	}
 }
