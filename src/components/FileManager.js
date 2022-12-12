@@ -46,6 +46,13 @@ export default class {
 		this._current = workDir;
 		this._parsedHome = parsedHomeDir;
 		this._parsedWork = parsedWorkDir;
+		this._commands = {
+			'--EOL': () => JSON.stringify(EOL),
+			'--homedir': () => this._homedir,
+			'--username': () => this._currentUser ?? this._username,
+			'--architecture': () => arch(),
+			'--cpus': () => cpus()[0].model,
+		};
 	}
 	get wd() {
 		return this._current;
@@ -78,20 +85,17 @@ export default class {
 	pwd = () => console.log(`You are currently in ${this.wd ?? 'Unknown directory'}`)
 
 	os(args) {
-		const commands = {
-			'--EOL': () => JSON.stringify(EOL),
-			'--homedir': () => this._homedir,
-			'--username': () => this._currentUser ?? this._username,
-			'--architecture': () => arch(),
-			'--cpus': () => cpus()[0].model,
-		};
-		args.forEach((arg) => {
-			if (typeof commands[arg] === 'function') {
-				console.log(commands[arg]());
-			} else {
-				console.log('incorrect argument: ', arg);
-			}
-		});
+		if (args.length) {
+			return args.forEach((arg) => {
+				if (typeof this._commands[arg] === 'function') {
+					console.log(this._commands[arg]());
+				} else {
+					console.log('incorrect argument: ', arg);
+				}
+			});
+		} else {
+			console.log('Please provide an argument');
+		}
 	}
 
 	up() {
@@ -134,7 +138,7 @@ export default class {
 	}
 	async cat(args) {
 		if (args.length === 1) {
-			const currentPath = resolver(args[0]);
+			const currentPath = resolve(args[0]);
 			try {
 				const currentPathStat = await stat(currentPath);
 				if (currentPathStat.isFile()) {
@@ -257,9 +261,11 @@ export default class {
 			const res = this._massExistSyncChecker([src, dirname(dest)]);
 			if (res.status === 'OK') {
 				return this._createTransformStream(src, dest, transformer);
+
 			} else {
 				return console.error(`${res.failedPath} is not exists`);
 			}
+
 		} else {
 			console.log('incorrect format: ', ...args);
 		}
