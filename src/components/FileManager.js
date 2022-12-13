@@ -20,13 +20,6 @@ import {
 	createWriteStream,
 	existsSync
 } from 'node:fs';
-// import {
-// 	cpus,
-// 	arch,
-// 	EOL,
-// 	homedir,
-// 	userInfo
-// } from 'node:os';
 import {
 	createHash
 } from 'node:crypto';
@@ -42,6 +35,13 @@ export default class {
 		this._root = parse(process.cwd()).root;
 		this._cwd = process.cwd();
 		this._informer = informer;
+	}
+
+	_argsControl = (args = [], minArgs = 0, cb) => {
+		if (args.length >= minArgs) {
+		return cb(args);
+		}
+		return console.log('incorrect format: ', ...args);
 	}
 
 	_massPathResolve = (paths) => paths.map((p) => resolve(p));
@@ -90,13 +90,10 @@ export default class {
 		return this.pwd();
 	}
 	cd(args) {
-		if (args.length === 1) {
-			const inputPath = args[0];
+		return this._argsControl(args, 1, ([inputPath])=> {
 			this._cwd = isAbsolute(inputPath) ? inputPath : join(this._cwd, inputPath, sep);
 			return this.pwd();
-		} else {
-			return console.log('incorrect format: ', ...args);
-		}
+		})
 	}
 
 	async ls(args) {
@@ -120,9 +117,9 @@ export default class {
 			});
 		console.table(results);
 	}
-	async cat(args) {
-		if (args.length === 1) {
-			const currentPath = resolve(args[0]);
+	cat(args) {
+		return this._argsControl(args, 1, async ([inputPath]) => {
+			const currentPath = resolve(inputPath);
 			try {
 				const currentPathStat = await stat(currentPath);
 				if (currentPathStat.isFile()) {
@@ -133,53 +130,47 @@ export default class {
 					});
 
 				} else {
-					console.error(`${args[0]} is a Directory`);
+					console.error(`${inputPath} is a Directory`);
 				}
 
 			} catch (err) {
 				console.error(arr);
 			}
-		} else {
-			console.log('path not found');
-		}
+		});
 	}
-	async add(args) {
-		if (args.length === 1) {
-			const currentPath = resolve(args[0]);
+	add(args) {
+		return this._argsControl(args, 1, async ([inputPath]) => {
+			const currentPath = resolve(inputPath);
 			try {
 				const emptyFile = await open(currentPath, 'wx');
 				await emptyFile.close();
 			} catch (err) {
 				console.error(err);
 			}
-		}
+		});
 	}
-	async rn(args) {
-		if (args.length === 2) {
-			const oldPath = resolve(args[0]);
-			const newPath = resolve(args[1]);
+	rn(args) {
+		return this._argsControl(args, 2, async ([inputOld, inputNew]) => {
+			const oldPath = resolve(inputOld);
+			const newPath = resolve(inputNew);
 			if (existsSync(newPath)) {
 				return console.error(`${newPath} is already exists!`);
 			}
 			await rename(oldPath, newPath)
 				.catch((err) => console.error(err));
-		} else {
-			console.log('incorrect format: ', ...args);
-		}
+		});
 	}
-	async rm(args) {
-		if (args.length) {
+	rm(args) {
+		return this._argsControl(args, 1, async (args) => {
 			args.forEach((pathToRm) => {
 				const pathToFile = resolve(pathToRm);
 				remove(pathToFile)
 					.catch((err) => console.error(err));
 			})
-		} else {
-			console.log('incorrect format: ', ...args);
-		}
+		});
 	}
-	async cp(args) {
-		if (args.length >= 2) {
+	cp(args) {
+		return this._argsControl(args, 2, async (args) => {
 			const [src, destFolder] = this._massPathResolve(args.slice(0, 2));
 			const {
 				base
@@ -205,9 +196,7 @@ export default class {
 			} else {
 				return console.error(`${src} is not exists`);
 			}
-		} else {
-			console.log('incorrect format: ', ...args);
-		}
+		});
 	}
 	async mv(args) {
 		try {
@@ -218,36 +207,32 @@ export default class {
 		}
 	}
 
-	async hash(args) {
-		if (args.length) {
-			const pathToFile = resolve(args[0]);
+	hash(args) {
+		return this._argsControl(args, 1, async ([inputPath]) => {
+			const pathToFile = resolve(inputPath);
 			try {
 				const data = await readFile(pathToFile, {
 					encoding: 'utf8'
 				});
-				const hashSum = createHash('sha256');
-				hashSum.update(data);
+				const hashSum = createHash('sha256').update(data);
 				const hex = hashSum.digest('hex');
 				console.log(hex);
 			} catch (err) {
 				console.error(err);
 			}
-
-		} else {
-			console.log('incorrect format: ', ...args);
-		}
+		});	
 	}
 
 	async _createTransformStream(src, dest, ...transformers) {
 		const readStream = createReadStream(src);
 		const writeStream = createWriteStream(dest, {
 			flags: 'wx'
-		});
+		})
 		await pipeline(readStream, ...transformers, writeStream)
 			.catch((err) => console.error(err));
 	}
 	_safeCreateTransformStream(args = [], ...transformers) {
-		if (args.length >= 2) {
+		return this._argsControl(args, 2, async (args) => {
 			const [src, dest] = this._massPathResolve(args.slice(0, 2));
 			const results = this._massExistSyncCheck([src, dirname(dest)]);
 			if (results.status === 'OK') {
@@ -257,10 +242,7 @@ export default class {
 					console.error(`${results.checkedPaths[i].path} is not exists`);
 				});
 			}
-
-		} else {
-			console.log('incorrect format: ', ...args);
-		}
+		});
 	}
 	compress(args) {
 		return this._safeCreateTransformStream(args, createBrotliCompress());

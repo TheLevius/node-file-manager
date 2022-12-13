@@ -1,16 +1,9 @@
 import FileManager from './components/FileManager.js';
 import Handler from './components/Handler.js';
 import Informer from './components/Informer.js';
+import parseArgs from './utils/parseArgs.js';
 
-const args = process.argv.slice(2);
-const parsedArgsCollection = args.reduce((acc, el) => {
-	if (el.length > 2 && el.includes('--', 0)) {
-		const [key, value] = el.split('=');
-		const parsedKey = key.replace(/^--/, '');
-		acc[parsedKey] = value;
-	}
-	return acc;
-}, {});
+const parsedArgsCollection = parseArgs(process.argv.slice(2));
 
 const informer = new Informer({username: parsedArgsCollection.username});
 const fileManager = new FileManager({informer});
