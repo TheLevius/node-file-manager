@@ -1,5 +1,6 @@
 import FileManager from './components/FileManager.js';
 import Handler from './components/Handler.js';
+import Informer from './components/Informer.js';
 
 const args = process.argv.slice(2);
 const parsedArgsCollection = args.reduce((acc, el) => {
@@ -11,8 +12,9 @@ const parsedArgsCollection = args.reduce((acc, el) => {
 	return acc;
 }, {});
 
-const fileManager = new FileManager(parsedArgsCollection.username);
-const handler = new Handler(fileManager);
+const informer = new Informer({username: parsedArgsCollection.username});
+const fileManager = new FileManager({informer});
+const handler = new Handler({executor: fileManager});
 
 fileManager.greeting();
 fileManager.pwd();

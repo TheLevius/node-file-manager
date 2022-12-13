@@ -20,13 +20,13 @@ import {
 	createWriteStream,
 	existsSync
 } from 'node:fs';
-import {
-	cpus,
-	arch,
-	EOL,
-	homedir,
-	userInfo
-} from 'node:os';
+// import {
+// 	cpus,
+// 	arch,
+// 	EOL,
+// 	homedir,
+// 	userInfo
+// } from 'node:os';
 import {
 	createHash
 } from 'node:crypto';
@@ -38,49 +38,40 @@ import {
 	createBrotliDecompress
 } from 'node:zlib';
 export default class {
-	constructor(currentUser) {
+	constructor({ informer }) {
 		this._root = parse(process.cwd()).root;
-		this._username = currentUser ?? userInfo().username;
 		this._cwd = process.cwd();
-		this._commands = {
-			'--EOL': () => JSON.stringify(EOL),
-			'--homedir': () => homedir(),
-			'--username': () => this._username,
-			'--architecture': () => arch(),
-			'--cpus': () => {
-				const cpusInfo = cpus();
-				return (`CPU: Model: ${cpusInfo[0].model}, Logical cores: ${cpusInfo.length}`);
-			}
-		};
+		this._informer = informer;
 	}
 
 	_massPathResolve = (paths) => paths.map((p) => resolve(p));
 
-	_massExistSyncChecker = (paths) => {
-		const indexOfNotExistingPath = paths.findIndex((el) => !existsSync(el));
-		if (indexOfNotExistingPath === -1) {
-			return ({
-				status: 'OK'
-			});
-		} else {
-			return ({
-				status: 'FAILED',
-				failedPath: paths[indexOfNotExistingPath],
-				failedIndex: indexOfNotExistingPath
-			});
-		}
+	_massExistSyncCheck = (paths) => {
+		const results = paths.reduce((acc, path, index) => {			
+			const isExist = existsSync(path);
+			if (!isExist) {
+				acc.notExistIndexList.push(index);
+			}
+			acc.checkedPaths.push({ path, index, isExist });
+			return acc;
+		}, { notExistIndexList: [], checkedPaths: [] });
+
+		results.status = results.notExistIndexList.length === 0 ? 'OK' : 'FAILED';
+		return results;
 	}
 
-	greeting = () => console.log(`Welcome to the File Manager, ${this._username}!`)
-	farewell = () => console.log(`\nThank you for using File Manager, ${this._username}, goodbye!`)
-	pwd = () => console.log(`You are currently in ${this._cwd}`);
+	pwd = () => console.log(`You are currently in ${this._cwd}`)
+
+	greeting = () => console.log(this._informer.greeting())
+	farewell = () => console.log(this._informer.farewell())
 
 	os(args) {
 		
 		if (args.length > 0) {
 			return args.forEach((arg) => {
-				if (typeof this._commands[arg] === 'function') {
-					console.log(this._commands[arg]());
+				const parsedArg = arg.replace(/^--/, '');
+				if (typeof this._informer[parsedArg] === 'function') {
+					console.log(this._informer[parsedArg]());
 				} else {
 					console.log('incorrect argument: ', arg);
 				}
@@ -258,11 +249,13 @@ export default class {
 	_safeCreateTransformStream(args = [], ...transformers) {
 		if (args.length >= 2) {
 			const [src, dest] = this._massPathResolve(args.slice(0, 2));
-			const results = this._massExistSyncChecker([src, dirname(dest)]);
+			const results = this._massExistSyncCheck([src, dirname(dest)]);
 			if (results.status === 'OK') {
 				return this._createTransformStream(src, dest, ...transformers);
 			} else {
-				return console.error(`${results.failedPath} is not exists`);
+				return results.notExistIndexList.forEach((i) => {
+					console.error(`${results.checkedPaths[i].path} is not exists`);
+				});
 			}
 
 		} else {

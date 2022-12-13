@@ -1,5 +1,5 @@
 export default class {
-	constructor(executor) {
+	constructor({executor}) {
 		this._executor = executor;
 	}
 	inputReader = (commandLine) => {
