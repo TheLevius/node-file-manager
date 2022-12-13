@@ -3,7 +3,8 @@ import {
 	join,
 	sep,
 	dirname,
-	resolve
+	resolve,
+	isAbsolute
 } from 'node:path';
 import {
 	open,
@@ -22,7 +23,9 @@ import {
 import {
 	cpus,
 	arch,
-	EOL
+	EOL,
+	homedir,
+	userInfo
 } from 'node:os';
 import {
 	createHash
@@ -35,57 +38,46 @@ import {
 	createBrotliDecompress
 } from 'node:zlib';
 export default class {
-	constructor(homedir, workDir, currentUser) {
-		const parsedHomeDir = parse(homedir);
-		const parsedWorkDir = parse(workDir);
-
-		this._currentUser = currentUser;
-		this._homedir = homedir;
-		this._root = parsedHomeDir.root;
-		this._username = parsedHomeDir.base;
-		this._current = workDir;
-		this._parsedHome = parsedHomeDir;
-		this._parsedWork = parsedWorkDir;
+	constructor(currentUser) {
+		this._root = parse(process.cwd()).root;
+		this._username = currentUser ?? userInfo().username;
+		this._cwd = process.cwd();
 		this._commands = {
 			'--EOL': () => JSON.stringify(EOL),
-			'--homedir': () => this._homedir,
-			'--username': () => this._currentUser ?? this._username,
+			'--homedir': () => homedir(),
+			'--username': () => this._username,
 			'--architecture': () => arch(),
-			'--cpus': () => cpus()[0].model,
+			'--cpus': () => {
+				const cpusInfo = cpus();
+				return (`CPU: Model: ${cpusInfo[0].model}, Logical cores: ${cpusInfo.length}`);
+			}
 		};
-	}
-	get wd() {
-		return this._current;
-	}
-
-	set wd(value) {
-		this._current = value;
 	}
 
 	_massPathResolve = (paths) => paths.map((p) => resolve(p));
 
-	_massExistSyncChecker(paths) {
+	_massExistSyncChecker = (paths) => {
 		const indexOfNotExistingPath = paths.findIndex((el) => !existsSync(el));
-
 		if (indexOfNotExistingPath === -1) {
 			return ({
 				status: 'OK'
 			});
 		} else {
 			return ({
-				status: 'ERROR',
+				status: 'FAILED',
 				failedPath: paths[indexOfNotExistingPath],
 				failedIndex: indexOfNotExistingPath
 			});
 		}
 	}
 
-	greeting = () => console.log(`Welcome to the File Manager, ${this._currentUser}!`)
-	farewell = () => console.log(`\nThank you for using File Manager, ${this._currentUser}, goodbye!`)
-	pwd = () => console.log(`You are currently in ${this.wd ?? 'Unknown directory'}`)
+	greeting = () => console.log(`Welcome to the File Manager, ${this._username}!`)
+	farewell = () => console.log(`\nThank you for using File Manager, ${this._username}, goodbye!`)
+	pwd = () => console.log(`You are currently in ${this._cwd}`);
 
 	os(args) {
-		if (args.length) {
+		
+		if (args.length > 0) {
 			return args.forEach((arg) => {
 				if (typeof this._commands[arg] === 'function') {
 					console.log(this._commands[arg]());
@@ -96,27 +88,28 @@ export default class {
 		} else {
 			console.log('Please provide an argument');
 		}
-	}
+	};
 
 	up() {
-		if (this._current !== this._root) {
-			this.wd = join(this._current, '..', sep);
-			return this.pwd();
+		if (this._cwd !== this._root) {
+			this._cwd = join(this._cwd, '..', sep);
 		} else {
-			return console.log('Access Denied');
+			console.log('Access Denied');
 		}
+		return this.pwd();
 	}
 	cd(args) {
 		if (args.length === 1) {
-			this.wd = resolve(args[0]);
-			return this.pwd;
+			const inputPath = args[0];
+			this._cwd = isAbsolute(inputPath) ? inputPath : join(this._cwd, inputPath, sep);
+			return this.pwd();
 		} else {
 			return console.log('incorrect format: ', ...args);
 		}
 	}
 
 	async ls(args) {
-		const currentPath = args[0] ?? this._current;
+		const currentPath = args[0] ?? this._cwd;
 		const basenames = await readdir(currentPath, {
 				withFileTypes: true
 			})
@@ -196,24 +189,31 @@ export default class {
 	}
 	async cp(args) {
 		if (args.length >= 2) {
-			const [src, destFolder] = args;
+			const [src, destFolder] = this._massPathResolve(args.slice(0, 2));
 			const {
 				base
 			} = parse(src);
-			const srcPath = resolve(src);
-			const destFolderPath = resolve(destFolder);
-			const destPath = join(destFolderPath, base);
-			if (!existsSync(destFolderPath)) {
-				await mkdir(destFolderPath, {
+			const destPath = join(destFolder, base);
+			
+			if (!existsSync(destFolder)) {
+				await mkdir(destFolder, {
 						recursive: true
 					})
 					.catch(console.error);
 			}
-			const readStream = createReadStream(srcPath);
-			const writeStream = createWriteStream(destPath, {
-				flags: 'wx'
-			});
-			readStream.pipe(writeStream);
+			if (existsSync(src)) {
+				try {
+					const readStream = createReadStream(src);
+					const writeStream = createWriteStream(destPath, {
+						flags: 'wx'
+					});
+					readStream.pipe(writeStream);
+				} catch(err) {
+					console.error(err);
+				}
+			} else {
+				return console.error(`${src} is not exists`);
+			}
 		} else {
 			console.log('incorrect format: ', ...args);
 		}
@@ -255,15 +255,14 @@ export default class {
 		await pipeline(readStream, ...transformers, writeStream)
 			.catch((err) => console.error(err));
 	}
-	_safeCreateTransformStream(transformer, args = []) {
+	_safeCreateTransformStream(args = [], ...transformers) {
 		if (args.length >= 2) {
 			const [src, dest] = this._massPathResolve(args.slice(0, 2));
-			const res = this._massExistSyncChecker([src, dirname(dest)]);
-			if (res.status === 'OK') {
-				return this._createTransformStream(src, dest, transformer);
-
+			const results = this._massExistSyncChecker([src, dirname(dest)]);
+			if (results.status === 'OK') {
+				return this._createTransformStream(src, dest, ...transformers);
 			} else {
-				return console.error(`${res.failedPath} is not exists`);
+				return console.error(`${results.failedPath} is not exists`);
 			}
 
 		} else {
@@ -271,9 +270,9 @@ export default class {
 		}
 	}
 	compress(args) {
-		return this._safeCreateTransformStream(createBrotliCompress(), args);
+		return this._safeCreateTransformStream(args, createBrotliCompress());
 	}
 	decompress(args) {
-		return this._safeCreateTransformStream(createBrotliDecompress(), args);
+		return this._safeCreateTransformStream(args, createBrotliDecompress());
 	}
 }

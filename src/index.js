@@ -1,7 +1,3 @@
-import defineUser from './utils/defineUser.js';
-import {
-	homedir
-} from 'node:os';
 import FileManager from './components/FileManager.js';
 import Handler from './components/Handler.js';
 
@@ -15,8 +11,7 @@ const parsedArgsCollection = args.reduce((acc, el) => {
 	return acc;
 }, {});
 
-const currentUser = defineUser(parsedArgsCollection.username);
-const fileManager = new FileManager(homedir(), process.cwd(), currentUser);
+const fileManager = new FileManager(parsedArgsCollection.username);
 const handler = new Handler(fileManager);
 
 fileManager.greeting();
