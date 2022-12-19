@@ -30,10 +30,13 @@ import {
 	createBrotliCompress,
 	createBrotliDecompress
 } from 'node:zlib';
+import {
+	homedir
+} from 'node:os';
 export default class {
 	constructor({ informer }) {
 		this._root = parse(process.cwd()).root;
-		this._cwd = process.cwd();
+		this._cwd = homedir();
 		this._informer = informer;
 	}
 
@@ -103,7 +106,8 @@ export default class {
 			})
 			.catch((err) => console.error(err));
 
-		const results = basenames
+		try {
+			const results = basenames
 			.map((basename) => ({
 				Name: basename.name,
 				Type: basename.isDirectory() ? 'directory' : 'file'
@@ -116,6 +120,9 @@ export default class {
 				return 0;
 			});
 		console.table(results);
+		} catch(err) {
+			console.error(err);
+		}
 	}
 	cat(args) {
 		return this._argsControl(args, 1, async ([inputPath]) => {
@@ -224,23 +231,30 @@ export default class {
 	}
 
 	async _createTransformStream(src, dest, ...transformers) {
-		const readStream = createReadStream(src);
-		const writeStream = createWriteStream(dest, {
-			flags: 'wx'
-		})
-		await pipeline(readStream, ...transformers, writeStream)
-			.catch((err) => console.error(err));
+		try {
+			const readStream = createReadStream(src);
+			const writeStream = createWriteStream(dest, {
+				flags: 'wx'
+			});
+			await pipeline(readStream, ...transformers, writeStream);
+		} catch(err) {
+			console.error(err);
+		}
 	}
 	_safeCreateTransformStream(args = [], ...transformers) {
 		return this._argsControl(args, 2, async (args) => {
-			const [src, dest] = this._massPathResolve(args.slice(0, 2));
-			const results = this._massExistSyncCheck([src, dirname(dest)]);
-			if (results.status === 'OK') {
-				return this._createTransformStream(src, dest, ...transformers);
-			} else {
-				return results.notExistIndexList.forEach((i) => {
-					console.error(`${results.checkedPaths[i].path} is not exists`);
-				});
+			try {
+				const [src, dest] = this._massPathResolve(args.slice(0, 2));
+				const results = this._massExistSyncCheck([src, dirname(dest)]);
+				if (results.status === 'OK') {
+					return this._createTransformStream(src, dest, ...transformers);
+				} else {
+					return results.notExistIndexList.forEach((i) => {
+						console.error(`${results.checkedPaths[i].path} is not exists`);
+					});
+			}
+			} catch(err) {
+				console.error(err);
 			}
 		});
 	}
