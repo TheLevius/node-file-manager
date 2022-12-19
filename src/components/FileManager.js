@@ -21,9 +21,6 @@ import {
 	existsSync
 } from 'node:fs';
 import {
-	createHash
-} from 'node:crypto';
-import {
 	pipeline
 } from 'node:stream/promises';
 import {
@@ -33,11 +30,14 @@ import {
 import {
 	homedir
 } from 'node:os';
+import massPathResolve from '../utils/massPathResolve.js';
+import massExistSyncCheck from '../utils/massExistSyncCheck.js';
 export default class {
-	constructor({ informer }) {
+	constructor({ informer, hasher }) {
 		this._root = parse(process.cwd()).root;
 		this._cwd = homedir();
 		this._informer = informer;
+		this._hasher = hasher;
 	}
 
 	_argsControl = (args = [], minArgs = 0, cb) => {
@@ -45,22 +45,6 @@ export default class {
 		return cb(args);
 		}
 		return console.log('incorrect format: ', ...args);
-	}
-
-	_massPathResolve = (paths) => paths.map((p) => resolve(p));
-
-	_massExistSyncCheck = (paths) => {
-		const results = paths.reduce((acc, path, index) => {			
-			const isExist = existsSync(path);
-			if (!isExist) {
-				acc.notExistIndexList.push(index);
-			}
-			acc.checkedPaths.push({ path, index, isExist });
-			return acc;
-		}, { notExistIndexList: [], checkedPaths: [] });
-
-		results.status = results.notExistIndexList.length === 0 ? 'OK' : 'FAILED';
-		return results;
 	}
 
 	pwd = () => console.log(`You are currently in ${this._cwd}`)
@@ -178,7 +162,7 @@ export default class {
 	}
 	cp(args) {
 		return this._argsControl(args, 2, async (args) => {
-			const [src, destFolder] = this._massPathResolve(args.slice(0, 2));
+			const [src, destFolder] = massPathResolve(args.slice(0, 2));
 			const {
 				base
 			} = parse(src);
@@ -217,16 +201,7 @@ export default class {
 	hash(args) {
 		return this._argsControl(args, 1, async ([inputPath]) => {
 			const pathToFile = resolve(inputPath);
-			try {
-				const data = await readFile(pathToFile, {
-					encoding: 'utf8'
-				});
-				const hashSum = createHash('sha256').update(data);
-				const hex = hashSum.digest('hex');
-				console.log(hex);
-			} catch (err) {
-				console.error('Operation failed\n', err);
-			}
+			return this._hasher.hash(pathToFile);
 		});	
 	}
 
@@ -244,8 +219,8 @@ export default class {
 	_safeCreateTransformStream(args = [], ...transformers) {
 		return this._argsControl(args, 2, async (args) => {
 			try {
-				const [src, dest] = this._massPathResolve(args.slice(0, 2));
-				const results = this._massExistSyncCheck([src, dirname(dest)]);
+				const [src, dest] = massPathResolve(args.slice(0, 2));
+				const results = massExistSyncCheck([src, dirname(dest)]);
 				if (results.status === 'OK') {
 					return this._createTransformStream(src, dest, ...transformers);
 				} else {

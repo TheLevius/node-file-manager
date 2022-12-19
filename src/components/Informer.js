@@ -14,5 +14,5 @@ export default class {
 	}
 	greeting = () => `Welcome to the File Manager, ${this._username}!`;
 	farewell = () => `\nThank you for using File Manager, ${this._username}, goodbye!`;
-	
+
 };
