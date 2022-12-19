@@ -9,11 +9,11 @@ import {
 import {
 	open,
 	readdir,
-	readFile,
 	rename,
 	stat,
 	rm as remove,
-	mkdir
+	mkdir,
+	access
 } from 'node:fs/promises';
 import {
 	createReadStream,
@@ -77,9 +77,15 @@ export default class {
 		return this.pwd();
 	}
 	cd(args) {
-		return this._argsControl(args, 1, ([inputPath])=> {
-			this._cwd = isAbsolute(inputPath) ? inputPath : join(this._cwd, inputPath, sep);
-			return this.pwd();
+		return this._argsControl(args, 1, async ([inputPath])=> {
+			try {
+				const resultPath = isAbsolute(inputPath) ? inputPath : join(this._cwd, inputPath, sep);
+				await access(resultPath);
+				this._cwd = resultPath;
+				this.pwd();
+			} catch (err) {
+				console.error('Operation failed\n', err);
+			}
 		})
 	}
 
