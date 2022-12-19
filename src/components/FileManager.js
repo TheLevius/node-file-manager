@@ -104,7 +104,7 @@ export default class {
 		const basenames = await readdir(currentPath, {
 				withFileTypes: true
 			})
-			.catch((err) => console.error(err));
+			.catch((err) => console.error('Operation failed\n', err));
 
 		try {
 			const results = basenames
@@ -121,7 +121,7 @@ export default class {
 			});
 		console.table(results);
 		} catch(err) {
-			console.error(err);
+			console.error('Operation failed\n', err);
 		}
 	}
 	cat(args) {
@@ -141,7 +141,7 @@ export default class {
 				}
 
 			} catch (err) {
-				console.error(arr);
+				console.error('Operation failed\n', err);
 			}
 		});
 	}
@@ -152,7 +152,7 @@ export default class {
 				const emptyFile = await open(currentPath, 'wx');
 				await emptyFile.close();
 			} catch (err) {
-				console.error(err);
+				console.error('Operation failed\n', err);
 			}
 		});
 	}
@@ -164,7 +164,7 @@ export default class {
 				return console.error(`${newPath} is already exists!`);
 			}
 			await rename(oldPath, newPath)
-				.catch((err) => console.error(err));
+				.catch((err) => console.error('Operation failed\n', err));
 		});
 	}
 	rm(args) {
@@ -172,7 +172,7 @@ export default class {
 			args.forEach((pathToRm) => {
 				const pathToFile = resolve(pathToRm);
 				remove(pathToFile)
-					.catch((err) => console.error(err));
+					.catch((err) => console.error('Operation failed\n', err));
 			})
 		});
 	}
@@ -188,7 +188,7 @@ export default class {
 				await mkdir(destFolder, {
 						recursive: true
 					})
-					.catch(console.error);
+					.catch((err) => console.error('Operation failed\n', err));
 			}
 			if (existsSync(src)) {
 				try {
@@ -198,7 +198,7 @@ export default class {
 					});
 					readStream.pipe(writeStream);
 				} catch(err) {
-					console.error(err);
+					console.error('Operation failed\n', err);
 				}
 			} else {
 				return console.error(`${src} is not exists`);
@@ -210,7 +210,7 @@ export default class {
 			await this.cp(args);
 			await this.rm(args);
 		} catch (err) {
-			console.error(err);
+			console.error('Operation failed\n', err);
 		}
 	}
 
@@ -225,7 +225,7 @@ export default class {
 				const hex = hashSum.digest('hex');
 				console.log(hex);
 			} catch (err) {
-				console.error(err);
+				console.error('Operation failed\n', err);
 			}
 		});	
 	}
@@ -238,7 +238,7 @@ export default class {
 			});
 			await pipeline(readStream, ...transformers, writeStream);
 		} catch(err) {
-			console.error(err);
+			console.error('Operation failed\n', err);
 		}
 	}
 	_safeCreateTransformStream(args = [], ...transformers) {
@@ -254,7 +254,7 @@ export default class {
 					});
 			}
 			} catch(err) {
-				console.error(err);
+				console.error('Operation failed\n', err);
 			}
 		});
 	}
